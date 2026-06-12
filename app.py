@@ -275,24 +275,24 @@ def start_search():
     data = request.get_json()
     location = data.get('location', 'United States')
     job_type = data.get('jobType', 'Contract')
+    fast_mode = data.get('fast_mode', False)  # Get fast mode flag
     
     search_id = str(uuid.uuid4())
-    active_searches[search_id] = {
-        'active': True, 
-        'results': [],
-        'total_raw': 0,
-        'start_time': datetime.now().isoformat()
-    }
     
-    log_message(f"🚀 Started search: {location} | {job_type} | Target: {MAX_JOBS} jobs")
+    # Adjust settings based on fast mode
+    if fast_mode:
+        # Fast mode settings
+        locations_to_search = ["United States"]  # Only 1 location
+        keywords_to_search = ["IAM"]  # Only 1 keyword
+        max_jobs = 25  # Stop at 25 jobs
+    else:
+        # Normal mode settings
+        locations_to_search = US_LOCATIONS[:8]  # Multiple locations
+        keywords_to_search = CORE_IAM_KEYWORDS[:4]  # More keywords
+        max_jobs = MAX_JOBS
     
-    thread = threading.Thread(
-        target=run_search, 
-        args=(search_id, location, job_type), 
-        daemon=True
-    )
-    thread.start()
-    return jsonify({'search_id': search_id})
+    # Pass these to your search function
+    # ... rest of your code
 
 @app.route('/search_results/<search_id>')
 def search_results(search_id):
