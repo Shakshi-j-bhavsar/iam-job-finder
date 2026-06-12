@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -10,7 +11,7 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import pandas as pd
 import re
-import time
+
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
@@ -117,103 +118,82 @@ def run_search(search_id, location, job_type):
     
     try:
         from jobspy import scrape_jobs
+        import time
         
-        # Determine locations to search
         if location == "United States":
-            locations_to_search = US_LOCATIONS
-            log_message(f"Search {search_id}: Will search up to {len(locations_to_search)} locations until {MAX_JOBS} jobs found")
+            locations_to_search = US_LOCATIONS[:8]
+            log_message(f"Search {search_id}: Will search {len(locations_to_search)} locations until {MAX_JOBS} jobs")
         else:
             locations_to_search = [location]
         
         for i, loc in enumerate(locations_to_search):
             if not active_searches.get(search_id, {}).get('active', False):
-                log_message(f"Search {search_id}: Stopped by user")
                 break
             
-            # Check if we've reached the target
             if len(all_results) >= MAX_JOBS:
-                log_message(f"Search {search_id}: Reached target of {MAX_JOBS} jobs. Stopping search.")
+                log_message(f"Search {search_id}: Reached target of {MAX_JOBS} jobs")
                 break
             
-            log_message(f"Search {search_id}: Searching {loc} ({i+1}/{len(locations_to_search)}) - Found {len(all_results)}/{MAX_JOBS} jobs so far")
+            log_message(f"Search {search_id}: Searching {loc} ({i+1}/{len(locations_to_search)}) - Found {len(all_results)}/{MAX_JOBS}")
             
-            # Search for each core IAM keyword
-            for keyword in CORE_IAM_KEYWORDS[:3]:  # Limit keywords to save API calls
+            # REMOVED GOOGLE - only Indeed and LinkedIn
+            for keyword in CORE_IAM_KEYWORDS[:3]:
                 if not active_searches.get(search_id, {}).get('active', False):
                     break
                 
-                # Check target again before each keyword search
                 if len(all_results) >= MAX_JOBS:
                     break
                     
                 try:
-                    # Adjust results_wanted based on remaining needed jobs
-                    remaining = MAX_JOBS - len(all_results)
-                    results_wanted = min(remaining * 2, 25)  # Get a bit extra to filter
+                    time.sleep(2)  # 2 second delay
                     
                     jobs_df = scrape_jobs(
-                        site_name=["indeed", "linkedin", "google"],
+                        site_name=["indeed", "linkedin"],  # No Google
                         search_term=keyword,
                         location=loc,
-                        results_wanted=results_wanted,
+                        results_wanted=15,
                         hours_old=168,
                         job_type=job_type.lower(),
                         remote_only=False,
                     )
                     
                     if jobs_df is not None and not jobs_df.empty:
-                        new_jobs = 0
                         for idx, row in jobs_df.iterrows():
                             if len(all_results) >= MAX_JOBS:
                                 break
                                 
                             title = str(row.get('title', ''))
                             company = str(row.get('company', ''))
-                            description = str(row.get('description', ''))
                             
-                            # Strict IAM filtering
-                            if not is_genuine_iam_job(title, company, description):
-                                continue
-                            
-                            posted_date = safe_date_format(row.get('date_posted'))
-                            
-                            job_data = {
-                                "title": title,
-                                "company": company,
-                                "location": str(row.get('location', loc)),
-                                "job_url": str(row.get('job_url', '#')),
-                                "source": str(row.get('site', 'N/A')),
-                                "posted_date": posted_date
-                            }
-                            
-                            # Check for duplicates
-                            exists = any(j['title'] == job_data['title'] and j['company'] == job_data['company'] for j in all_results)
-                            if not exists:
-                                all_results.append(job_data)
-                                new_jobs += 1
+                            if is_genuine_iam_job(title, company, ''):
+                                job_data = {
+                                    "title": title,
+                                    "company": company,
+                                    "location": str(row.get('location', loc)),
+                                    "job_url": str(row.get('job_url', '#')),
+                                    "source": str(row.get('site', 'N/A')),
+                                    "posted_date": safe_date_format(row.get('date_posted'))
+                                }
                                 
-                        if new_jobs > 0:
-                            log_message(f"Search {search_id}: Added {new_jobs} jobs from '{keyword}' in {loc} (Total: {len(all_results)}/{MAX_JOBS})")
-                        
-                    time.sleep(0.5)  # Small delay between searches
-                    
+                                exists = any(j['title'] == job_data['title'] for j in all_results)
+                                if not exists:
+                                    all_results.append(job_data)
+                                    
                 except Exception as e:
-                    log_message(f"Error searching '{keyword}' in {loc}: {e}")
+                    log_message(f"Error: {e}")
                     continue
             
-            # Update results periodically in shared storage
+            # Update results
             if search_id in active_searches:
                 processed = process_and_score_jobs(all_results)
                 active_searches[search_id]['results'] = processed
                 active_searches[search_id]['total_raw'] = len(all_results)
         
-        # Final processing
         final_results = process_and_score_jobs(all_results)
         
         if search_id in active_searches:
             active_searches[search_id]['results'] = final_results
-            active_searches[search_id]['total_raw'] = len(all_results)
-            log_message(f"Search {search_id}: FINISHED - Found {len(final_results)} IAM contract jobs (Target: {MAX_JOBS})")
+            log_message(f"Search {search_id}: COMPLETED - Found {len(final_results)} IAM contract jobs")
         
     except Exception as e:
         log_message(f"Search {search_id} error: {e}")
