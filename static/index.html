@@ -296,21 +296,27 @@
             </h1>
             <p>Real-time job search · Identity & Access Management · Contract positions only</p>
         </div>
-
-        <div class="stats-bar">
-            <div class="stat">
-                <span class="stat-label">📊 Total Found:</span>
-                <span class="stat-value" id="jobCount">0</span>
-            </div>
-            <div class="stat">
-                <span class="stat-label">⏱️ Search Time:</span>
-                <span class="stat-value" id="searchTime">0s</span>
-            </div>
-            <div class="stat">
-                <span class="stat-label" id="statusText">Status:</span>
-                <span class="status-badge status-idle" id="statusBadge">Ready</span>
-            </div>
+                // In index.html add:
+    <div class="stats-bar">
+        <div class="stat">
+            <span class="stat-label">📊 Total Found:</span>
+            <span class="stat-value" id="jobCount">0</span>
         </div>
+        <div class="stat">
+            <span class="stat-label">⏱️ Search Time:</span>
+            <span class="stat-value" id="searchTime">0s</span>
+        </div>
+        <div class="stat">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="fastMode"> 
+                <span style="font-size: 0.85rem;">⚡ Fast Mode (&lt; 30 sec)</span>
+            </label>
+        </div>
+        <div class="stat">
+            <span class="stat-label" id="statusText">Status:</span>
+            <span class="status-badge status-idle" id="statusBadge">Ready</span>
+        </div>
+    </div>
 
         <div class="controls">
             <div class="control-group">
