@@ -477,51 +477,55 @@
     }
 
     async function startSearch() {
-        const location = document.getElementById('location').value;
-        const jobType = document.getElementById('jobType').value;
-        
-        if (currentSearchId) {
-            await fetch(`/stop_search/${currentSearchId}`, {method: 'POST'});
-            stopPolling();
-        }
-        
-        // Reset UI
-        renderTable([]);
-        document.getElementById('jobCount').innerText = '0';
-        document.getElementById('searchTime').innerText = '0s';
-        document.getElementById('statusBadge').className = 'status-badge status-searching';
-        document.getElementById('statusBadge').innerText = 'Searching...';
-        document.getElementById('stopBtn').disabled = false;
-        document.getElementById('exportBtn').disabled = true;  // Disable until search completes
-        document.getElementById('searchBtn').disabled = true;
-        
-        // Clear last search ID
-        lastSearchId = null;
-        searchStartTime = Date.now();
-        
-        try {
-            const response = await fetch('/start_search', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({location, jobType})
-            });
-            const data = await response.json();
-            if (data.search_id) {
-                currentSearchId = data.search_id;
-                startPolling();
-            } else {
-                throw new Error('No search_id returned');
-            }
-        } catch (err) {
-            console.error(err);
-            document.getElementById('statusBadge').className = 'status-badge status-stopped';
-            document.getElementById('statusBadge').innerText = 'Error';
-            document.getElementById('searchBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
-            alert('Search failed. Please try again.');
-        }
+    const location = document.getElementById('location').value;
+    const jobType = document.getElementById('jobType').value;
+    const fastMode = document.getElementById('fastMode').checked; // Get checkbox value
+    
+    if (currentSearchId) {
+        await fetch(`/stop_search/${currentSearchId}`, {method: 'POST'});
+        stopPolling();
     }
-
+    
+    // Reset UI
+    renderTable([]);
+    document.getElementById('jobCount').innerText = '0';
+    document.getElementById('searchTime').innerText = '0s';
+    document.getElementById('statusBadge').className = 'status-badge status-searching';
+    document.getElementById('statusBadge').innerText = 'Searching...';
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('exportBtn').disabled = true; // Disable until search completes
+    document.getElementById('searchBtn').disabled = true;
+    
+    // Clear last search ID
+    lastSearchId = null;
+    searchStartTime = Date.now();
+    
+    try {
+        const response = await fetch('/start_search', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location,
+                jobType,
+                fast_mode: fastMode  // Send fast mode setting
+            })
+        });
+        const data = await response.json();
+        if (data.search_id) {
+            currentSearchId = data.search_id;
+            startPolling();
+        } else {
+            throw new Error('No search_id returned');
+        }
+    } catch (err) {
+        console.error(err);
+        document.getElementById('statusBadge').className = 'status-badge status-stopped';
+        document.getElementById('statusBadge').innerText = 'Error';
+        document.getElementById('searchBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        alert('Search failed. Please try again.');
+    }
+}
     async function stopSearch() {
         if (currentSearchId) {
             await fetch(`/stop_search/${currentSearchId}`, {method: 'POST'});
