@@ -1,0 +1,8 @@
+flask
+flask-cors
+python-jobspy
+pandas
+openpyxl
+anthropic
+python-dotenv
+gunicorn
