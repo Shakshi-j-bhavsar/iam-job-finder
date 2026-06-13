@@ -132,9 +132,18 @@ def run_search(search_id, location, job_type):
     try:
         from jobspy import scrape_jobs
         
+        # Add more headers to avoid blocking
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        }
+        
         if location == "United States":
-            locations_to_search = US_LOCATIONS
-            log_message(f"Search {search_id}: Searching {len(locations_to_search)} US locations")
+            locations_to_search = ["New York, NY", "San Francisco, CA", "Austin, TX", "Remote"]
+            log_message(f"Search {search_id}: Searching {len(locations_to_search)} locations")
         else:
             locations_to_search = [location]
         
@@ -143,12 +152,11 @@ def run_search(search_id, location, job_type):
                 break
             
             if len(all_results) >= MAX_JOBS:
-                log_message(f"Search {search_id}: Reached target of {MAX_JOBS} jobs")
                 break
             
-            log_message(f"Search {search_id}: Searching {loc} ({i+1}/{len(locations_to_search)}) - Found {len(all_results)}/{MAX_JOBS}")
+            log_message(f"Search {search_id}: Searching {loc} ({i+1}/{len(locations_to_search)})")
             
-            for keyword in CORE_IAM_KEYWORDS:
+            for keyword in ["IAM", "CyberArk", "SailPoint"]:
                 if not active_searches.get(search_id, {}).get('active', False):
                     break
                 
@@ -156,19 +164,20 @@ def run_search(search_id, location, job_type):
                     break
                     
                 try:
-                    time.sleep(0.3)
+                    time.sleep(2)  # Longer delay to avoid blocking
                     
                     jobs_df = scrape_jobs(
                         site_name=["indeed", "linkedin"],
                         search_term=keyword,
                         location=loc,
-                        results_wanted=20,
-                        hours_old=168,  # Back to 7 days to get more jobs
+                        results_wanted=10,
+                        hours_old=168,
                         job_type=job_type.lower(),
                         remote_only=False,
                     )
                     
                     if jobs_df is not None and not jobs_df.empty:
+                        log_message(f"Found {len(jobs_df)} jobs for {keyword} in {loc}")
                         for idx, row in jobs_df.iterrows():
                             if len(all_results) >= MAX_JOBS:
                                 break
@@ -189,6 +198,9 @@ def run_search(search_id, location, job_type):
                                 exists = any(j['title'] == job_data['title'] for j in all_results)
                                 if not exists:
                                     all_results.append(job_data)
+                                    log_message(f"Added job: {title}")
+                    else:
+                        log_message(f"No jobs found for {keyword} in {loc}")
                                     
                 except Exception as e:
                     log_message(f"Error: {e}")
@@ -203,14 +215,16 @@ def run_search(search_id, location, job_type):
         
         if search_id in active_searches:
             active_searches[search_id]['results'] = final_results
-            log_message(f"Search {search_id}: COMPLETED - Found {len(final_results)} IAM contract jobs")
+            log_message(f"Search {search_id}: COMPLETED - Found {len(final_results)} jobs")
         
     except Exception as e:
         log_message(f"Search {search_id} error: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         if search_id in active_searches:
             active_searches[search_id]['active'] = False
-
+            
 @app.route('/')
 def index():
     return send_file('static/index.html')
