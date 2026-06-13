@@ -256,10 +256,6 @@
                 <span class="stat-value" id="jobCount">0</span>
             </div>
             <div class="stat">
-                <span class="stat-label">⏱️ Search Time:</span>
-                <span class="stat-value" id="searchTime">0s</span>
-            </div>
-            <div class="stat">
                 <span class="stat-label">Status:</span>
                 <span class="status-badge status-idle" id="statusBadge">Ready</span>
             </div>
@@ -285,7 +281,8 @@
                 <label>💼 Job Type</label>
                 <select id="jobType">
                     <option value="contract">📄 Contract</option>
-                    
+                    <option value="fulltime">💼 Full-time</option>
+                    <option value="parttime">⏰ Part-time</option>
                 </select>
             </div>
             <button class="btn-primary" id="searchBtn">🔍 Search IAM Jobs</button>
@@ -321,7 +318,6 @@
         let currentSearchId = null;
         let lastSearchId = null;
         let pollingInterval = null;
-        let searchStartTime = null;
 
         function startPolling() {
             if (pollingInterval) clearInterval(pollingInterval);
@@ -332,13 +328,6 @@
             if (pollingInterval) {
                 clearInterval(pollingInterval);
                 pollingInterval = null;
-            }
-        }
-
-        function updateSearchTime() {
-            if (searchStartTime) {
-                const elapsed = Math.floor((Date.now() - searchStartTime) / 1000);
-                document.getElementById('searchTime').innerText = `${elapsed}s`;
             }
         }
 
@@ -353,8 +342,6 @@
                     renderTable(data.results);
                     document.getElementById('jobCount').innerText = data.results.length;
                 }
-                
-                updateSearchTime();
                 
                 if (!data.active && currentSearchId) {
                     stopPolling();
@@ -413,7 +400,6 @@
             
             renderTable([]);
             document.getElementById('jobCount').innerText = '0';
-            document.getElementById('searchTime').innerText = '0s';
             document.getElementById('statusBadge').className = 'status-badge status-searching';
             document.getElementById('statusBadge').innerText = 'Searching...';
             document.getElementById('stopBtn').disabled = false;
@@ -421,7 +407,6 @@
             document.getElementById('searchBtn').disabled = true;
             
             lastSearchId = null;
-            searchStartTime = Date.now();
             
             try {
                 const response = await fetch('/start_search', {
@@ -472,8 +457,6 @@
         document.getElementById('searchBtn').onclick = startSearch;
         document.getElementById('stopBtn').onclick = stopSearch;
         document.getElementById('exportBtn').onclick = exportExcel;
-        
-        setInterval(updateSearchTime, 1000);
     </script>
 </body>
 </html>
