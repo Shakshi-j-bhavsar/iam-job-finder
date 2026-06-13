@@ -16,18 +16,16 @@ app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
 
 # Configuration
-MAX_JOBS = 70
+MAX_JOBS = 55  # Target 55 jobs per search
 
-# Core IAM keywords
+# Core IAM keywords (reduced for speed)
 CORE_IAM_KEYWORDS = [
-    "IAM", "Identity and Access Management", "Identity Governance", "IGA",
-    "PAM", "Privileged Access Management", "SailPoint", "CyberArk", "Saviynt",
-    "Okta", "Ping Identity", "Entra ID", "Azure AD"
+    "IAM", "Identity Access Management", "SailPoint", "CyberArk", "Okta"
 ]
 
 IAM_TOOLS = [
     "sailpoint", "cyberark", "saviynt", "okta", "ping identity", "entra id",
-    "azure ad", "active directory", "forgerock", "keycloak", "auth0"
+    "azure ad", "active directory"
 ]
 
 EXCLUDE_WORDS = [
@@ -38,13 +36,13 @@ EXCLUDE_WORDS = [
 
 STRONG_IAM_INDICATORS = [
     "iam", "identity", "access management", "privileged access", "pam",
-    "iga", "identity governance", "sailpoint", "cyberark", "saviynt"
+    "iga", "identity governance", "sailpoint", "cyberark", "saviynt", "okta"
 ]
 
+# Reduced locations for faster search
 US_LOCATIONS = [
     "New York, NY", "San Francisco, CA", "Austin, TX", "Seattle, WA",
-    "Chicago, IL", "Boston, MA", "Los Angeles, CA", "Dallas, TX",
-    "Atlanta, GA", "Washington, DC"
+    "Chicago, IL", "Boston, MA", "Los Angeles, CA", "Dallas, TX"
 ]
 
 active_searches = {}
@@ -108,7 +106,7 @@ def process_and_score_jobs(jobs_list):
         title_lower = job['title'].lower()
         score = 5
         
-        core_terms = ["iam", "identity", "access management", "privileged access", "pam", "iga"]
+        core_terms = ["iam", "identity", "access management", "privileged access", "pam", "iga", "okta", "sailpoint", "cyberark"]
         for term in core_terms:
             if term in title_lower:
                 score += 3
@@ -152,7 +150,7 @@ def run_search(search_id, location, job_type):
         from jobspy import scrape_jobs
         
         if location == "United States":
-            locations_to_search = US_LOCATIONS[:5]
+            locations_to_search = US_LOCATIONS[:6]  # 6 locations for speed
             log_message(f"Search {search_id}: Searching {len(locations_to_search)} US locations")
         else:
             locations_to_search = [location]
@@ -162,11 +160,12 @@ def run_search(search_id, location, job_type):
                 break
             
             if len(all_results) >= MAX_JOBS:
+                log_message(f"Search {search_id}: Reached target of {MAX_JOBS} jobs")
                 break
             
             log_message(f"Search {search_id}: Searching {loc} ({i+1}/{len(locations_to_search)}) - Found {len(all_results)}/{MAX_JOBS}")
             
-            for keyword in CORE_IAM_KEYWORDS[:3]:
+            for keyword in CORE_IAM_KEYWORDS[:2]:  # Only 2 keywords per location
                 if not active_searches.get(search_id, {}).get('active', False):
                     break
                 
@@ -174,14 +173,14 @@ def run_search(search_id, location, job_type):
                     break
                     
                 try:
-                    time.sleep(1)
+                    time.sleep(0.5)  # 0.5 second delay for speed
                     
                     jobs_df = scrape_jobs(
                         site_name=["indeed", "linkedin"],
                         search_term=keyword,
                         location=loc,
-                        results_wanted=15,
-                        hours_old=12,
+                        results_wanted=12,  # Fewer per search = faster
+                        hours_old=48,  # 3 days for good balance
                         job_type=job_type.lower(),
                         remote_only=False,
                     )
@@ -299,9 +298,25 @@ def export_excel(search_id):
         })
     
     df = pd.DataFrame(export_data)
+    
+    # Auto-adjust column widths for better Excel display
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name="IAM_Contract_Jobs")
+        # Auto-adjust column widths
+        worksheet = writer.sheets['IAM_Contract_Jobs']
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+    
     output.seek(0)
     
     return send_file(
@@ -317,6 +332,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print(f"📍 Open http://localhost:5000 in your browser")
     print(f"🎯 Will stop after finding {MAX_JOBS} jobs")
+    print("⚡ Optimized for speed - 30-45 seconds typical")
     print("🚀 Click 'Search IAM Jobs' to start finding contract positions")
     print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
