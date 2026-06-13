@@ -16,22 +16,23 @@ app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
 
 # Configuration
-MAX_JOBS = 55  # Target 55 jobs per search
+MAX_JOBS = 55
 
-# Core IAM keywords (reduced for speed)
+# Expanded IAM keywords
 CORE_IAM_KEYWORDS = [
-    "IAM", "Identity Access Management", "SailPoint", "CyberArk", "Okta"
+    "IAM", "Identity Access Management", "Identity Governance", "IGA",
+    "PAM", "Privileged Access Management", "SailPoint", "CyberArk", 
+    "Saviynt", "Okta", "Ping Identity", "Entra ID", "Azure AD"
 ]
 
 IAM_TOOLS = [
     "sailpoint", "cyberark", "saviynt", "okta", "ping identity", "entra id",
-    "azure ad", "active directory"
+    "azure ad", "active directory", "forgerock", "keycloak", "auth0"
 ]
 
 EXCLUDE_WORDS = [
     "software engineer", "full stack", "frontend", "backend", "devops engineer",
-    "data engineer", "data scientist", "machine learning", "ai engineer",
-    "network engineer", "system administrator", "help desk", "it support"
+    "data engineer", "data scientist", "machine learning", "ai engineer"
 ]
 
 STRONG_IAM_INDICATORS = [
@@ -39,10 +40,12 @@ STRONG_IAM_INDICATORS = [
     "iga", "identity governance", "sailpoint", "cyberark", "saviynt", "okta"
 ]
 
-# Reduced locations for faster search
+# Expanded locations
 US_LOCATIONS = [
     "New York, NY", "San Francisco, CA", "Austin, TX", "Seattle, WA",
-    "Chicago, IL", "Boston, MA", "Los Angeles, CA", "Dallas, TX"
+    "Chicago, IL", "Boston, MA", "Los Angeles, CA", "Dallas, TX",
+    "Atlanta, GA", "Washington, DC", "Denver, CO", "Phoenix, AZ",
+    "United States", "Remote"
 ]
 
 active_searches = {}
@@ -79,16 +82,7 @@ def is_genuine_iam_job(title, company, description=""):
     if not has_iam_indicator:
         return False
     
-    has_tool = False
-    for tool in IAM_TOOLS:
-        if tool in title_lower:
-            has_tool = True
-            break
-    
-    generic_iam = ["iam", "identity access", "access management", "privileged access"]
-    has_generic = any(term in title_lower for term in generic_iam)
-    
-    return has_tool or has_generic
+    return True
 
 def process_and_score_jobs(jobs_list):
     if not jobs_list:
@@ -106,28 +100,17 @@ def process_and_score_jobs(jobs_list):
         title_lower = job['title'].lower()
         score = 5
         
-        core_terms = ["iam", "identity", "access management", "privileged access", "pam", "iga", "okta", "sailpoint", "cyberark"]
+        core_terms = ["iam", "identity", "access management", "privileged access", "pam", "iga", "sailpoint", "cyberark", "okta"]
         for term in core_terms:
             if term in title_lower:
-                score += 3
-                break
-        
-        for tool in IAM_TOOLS:
-            if tool in title_lower:
                 score += 2
-                break
-        
-        contract_indicators = ['contract', 'freelance', 'consultant', 'c2c', 'w2']
-        for ci in contract_indicators:
-            if ci in title_lower:
-                score += 1
                 break
         
         score = min(score, 10)
         
-        if score >= 8:
+        if score >= 7:
             verdict = "apply"
-        elif score >= 6:
+        elif score >= 5:
             verdict = "consider"
         else:
             verdict = "skip"
@@ -150,7 +133,7 @@ def run_search(search_id, location, job_type):
         from jobspy import scrape_jobs
         
         if location == "United States":
-            locations_to_search = US_LOCATIONS[:6]  # 6 locations for speed
+            locations_to_search = US_LOCATIONS
             log_message(f"Search {search_id}: Searching {len(locations_to_search)} US locations")
         else:
             locations_to_search = [location]
@@ -165,7 +148,7 @@ def run_search(search_id, location, job_type):
             
             log_message(f"Search {search_id}: Searching {loc} ({i+1}/{len(locations_to_search)}) - Found {len(all_results)}/{MAX_JOBS}")
             
-            for keyword in CORE_IAM_KEYWORDS[:2]:  # Only 2 keywords per location
+            for keyword in CORE_IAM_KEYWORDS:
                 if not active_searches.get(search_id, {}).get('active', False):
                     break
                 
@@ -173,14 +156,14 @@ def run_search(search_id, location, job_type):
                     break
                     
                 try:
-                    time.sleep(0.5)  # 0.5 second delay for speed
+                    time.sleep(0.3)
                     
                     jobs_df = scrape_jobs(
                         site_name=["indeed", "linkedin"],
                         search_term=keyword,
                         location=loc,
-                        results_wanted=12,  # Fewer per search = faster
-                        hours_old=48,  # 3 days for good balance
+                        results_wanted=20,
+                        hours_old=168,  # Back to 7 days to get more jobs
                         job_type=job_type.lower(),
                         remote_only=False,
                     )
@@ -224,8 +207,6 @@ def run_search(search_id, location, job_type):
         
     except Exception as e:
         log_message(f"Search {search_id} error: {e}")
-        import traceback
-        traceback.print_exc()
     finally:
         if search_id in active_searches:
             active_searches[search_id]['active'] = False
@@ -299,11 +280,9 @@ def export_excel(search_id):
     
     df = pd.DataFrame(export_data)
     
-    # Auto-adjust column widths for better Excel display
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name="IAM_Contract_Jobs")
-        # Auto-adjust column widths
         worksheet = writer.sheets['IAM_Contract_Jobs']
         for column in worksheet.columns:
             max_length = 0
@@ -314,7 +293,7 @@ def export_excel(search_id):
                         max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
+            adjusted_width = min(max_length + 2, 60)
             worksheet.column_dimensions[column_letter].width = adjusted_width
     
     output.seek(0)
@@ -331,8 +310,7 @@ if __name__ == '__main__':
     print("🔐 IAM Contract Job Finder")
     print("=" * 60)
     print(f"📍 Open http://localhost:5000 in your browser")
-    print(f"🎯 Will stop after finding {MAX_JOBS} jobs")
-    print("⚡ Optimized for speed - 30-45 seconds typical")
-    print("🚀 Click 'Search IAM Jobs' to start finding contract positions")
+    print(f"🎯 Target: {MAX_JOBS} jobs")
+    print("🚀 Click 'Search IAM Jobs' to start")
     print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
