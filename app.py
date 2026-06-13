@@ -181,7 +181,7 @@ def run_search(search_id, location, job_type):
                         search_term=keyword,
                         location=loc,
                         results_wanted=15,
-                        hours_old=168,
+                        hours_old=12,
                         job_type=job_type.lower(),
                         remote_only=False,
                     )
